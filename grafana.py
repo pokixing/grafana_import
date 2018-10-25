@@ -49,10 +49,10 @@ def error(msg):
 def run():
 	try:
 		set_logger(logger)
-		print("Log file location: %s" % log_file)
 		get_url, db_url = user_input()
 		headers={"Content-Type": 'application/json',
 				 "Accept": 'application/json'}
+		print("\33[32m[Log file location]: %s \33[0m" % log_file)
 		log_output("Test")
 		test = requests.get(get_url, headers=headers)
 		logger.info("%s : %s" % (test,test.text))
