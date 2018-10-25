@@ -5,6 +5,7 @@ import re
 import logging
 import getpass
 import time
+import sys
 
 logger = logging.getLogger()
 log_file = '/var/log/grafana/Import_%s.log' % (time.strftime('%Y%m%d_%H%M%S'))
@@ -39,62 +40,68 @@ def log_output(msg):
 	logger.info("****%s****" % msg)
 	format_output(msg)
 
-def warn(msg):
-	    print('\n\33[35m***[WARN]: %s \33[0m' % msg)
+def skip(msg):
+	    print('\n\33[32m***[SKIP]: %s \33[0m' % msg)
 
 def error(msg):
 	print('\n\33[35m***[ERROR]: %s \33[0m' % msg)
 
-def dashboard_import():
-	user_info = user_input()
+def dashboard_import(user_info):
 	db_get_url = 'http://' + user_info['user_name'] + ':' + user_info['user_psw'] + '@' + user_info['user_url'] + '/api/dashboards/uid/vSTc90giz'
 	db_url = 'http://' + user_info['user_name'] + ':' + user_info['user_psw'] + '@' + user_info['user_url'] + '/api/dashboards/db'
-	log_output("Test Dashboard")
-	test = requests.get(db_get_url, headers=headers)
-	logger.info("%s : %s" % (test,test.text))
-	if test.status_code == 200:
-		logger.warn("This dashboard has been existed.")
-		warn("This dashboard has been existed.")
-	elif test.status_code == 404:
+	log_output("Check Dashboard")
+	check = requests.get(db_get_url, headers=headers)
+	logger.info("%s %s" % (check, check.text))
+	if check.status_code == 200:
+		logger.info("This dashboard has been existed.\nSkip import this dashboard.")
+		skip("This dashboard has been existed.\nSkip import this dashboard.")
+	elif check.status_code == 404:
 		log_output("Start importing dashboard...")
 		data = open('esgyn_dashboard.json')
 		response = requests.post(db_url, data=data, headers=headers)
-		logger.info("%s : %s" % (response,response.text))
+		logger.info("%s %s" % (response,response.text))
 		if response.status_code == 200:
 			log_output("Dashboard import successfully!")
 		else:
 			error("Dashboard import failed!")
-			logger.error("%s : %s" % (response,response.text))
+			logger.error("%s %s" % (response,response.text))
+	elif check.status_code != 200 and check.status_code != 404:
+		error("Find error %s %s" % (check, check.text))
+		logger.error("%s %s" % (check, check.text))
 
-def datasource_import():
-	user_info = user_input()
+
+def datasource_import(user_info):
 	ds_get_url = 'http://' + user_info['user_name'] + ':' + user_info['user_psw'] + '@' + user_info['user_url'] + '/api/datasources/name/esgyn'
 	ds_url = 'http://' + user_info['user_name'] + ':' + user_info['user_psw'] + '@' + user_info['user_url'] + '/api/datasources'
-	log_output("Test Datasource")
-	test = requests.get(ds_get_url, headers=headers)
-	logger.info("%s : %s" % (test,test.text))
-	if test.status_code == 200:
-		logger.warn("This datasource has been existed.")
-		warn("This datasource has been existed.")
-	elif test.status_code == 404:
+	log_output("Check Datasource")
+	check = requests.get(ds_get_url, headers=headers)
+	logger.info("%s %s" % (check, check.text))
+	if check.status_code == 200:
+		logger.info("This datasource has been existed.\nSkip import this datasource.")
+		skip("This datasource has been existed.\nSkip import this datasource.")
+	elif check.status_code == 404:
 		log_output("Start importing datasource...")
 		data = open('esgyn_datasource.json')
 		response = requests.post(ds_url, data=data, headers=headers)
-		logger.info("%s : %s" % (response,response.text))
+		logger.info("%s %s" % (response,response.text))
 		if response.status_code == 200:
 			log_output("Datasource import successfully!")
 		else:
 			error("Datasource import failed!")
-			logger.error("%s : %s" % (response,response.text))
-			#############
+			logger.error("%s %s" % (response,response.text))
+			sys.exit(1)	
+	elif check.status_code != 200 and check.status_code != 404:
+		error("Find error %s %s" % (check, check.text))
+		logger.error("%s %s" % (check, check.text))
+		sys.exit(1)
 
 def run():
 	try:
 		set_logger(logger)
-		get_url, db_url = user_input()
+		user_info = user_input()
 		print("\33[32m[Log file location]: %s \33[0m" % log_file)
-		datasource_import()
-		dashboard_import()
+		datasource_import(user_info)
+		dashboard_import(user_info)
 
 	except IOError:
 		error("Unexpected error: Need sudo permission.")
