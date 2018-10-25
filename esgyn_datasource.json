@@ -1,0 +1,1 @@
+{"name":"esgyn","type":"opentsdb","typeLogoUrl":"public/app/plugins/datasource/opentsdb/img/opentsdb_logo.png","access":"proxy","url":"http://localhost:5242","password":"","user":"","database":"","basicAuth":false,"isDefault":true,"jsonData":{"keepCookies":[],"tsdbResolution":1,"tsdbVersion":2},"readOnly":false}
