@@ -1,4 +1,5 @@
 #!/usr/bin/python
+import os
 import requests
 import json
 import re
@@ -10,6 +11,7 @@ import socket
 from optparse import OptionParser
 
 logger = logging.getLogger()
+TMP_USERINFO = "/tmp/grafana_userinfo"
 ip = socket.gethostbyname(socket.gethostname())
 log_file = '/var/log/grafana/Import_%s.log' % (time.strftime('%Y%m%d_%H%M%S'))
 headers={"Content-Type": 'application/json',
@@ -49,8 +51,17 @@ def info(msg):
 def error(msg):
 	print('\n\33[35m***[ERROR]: %s \33[0m' % msg)
 
-def set_user():
-	user, psword = 'admin', 'admin'
+
+def load_user():
+	if os.path.exists(TMP_USERINFO):
+		with open(TMP_USERINFO, "r") as user_info:
+			userinfo = json.load(user_info)
+	else:
+		userinfo = {"user":"admin", "psword":"admin"}
+	return userinfo["user"],userinfo["psword"]
+
+
+def set_user(user, psword):
 	option = get_options()
 	log_output("Set Grafana Username")
 	if option.user:
@@ -71,10 +82,15 @@ def set_user():
 			error("Username Updated Error %s %s" % (put_user,put_user.text))
 			sys.exit(1)
 	else:		
-		logger.warn("Skip update username.It will use default username.")
-		skip("Skip update username.Use default username.")
+		if user == "admin":
+			logger.warn("Skip update username.It will use default username.")
+			skip("Skip update username.Use default username.")
+	return user
 
-	log_output("Set Grafana Username")
+
+def set_psw(user, psword):
+	option = get_options()
+	log_output("Set Grafana Password")
 	if option.psword:
 		psw_url = 'http://' + user + ':' + psword + '@' + ip + ':3000/api/user/password'
 		psw = {"oldPassword":psword,"newPassword":option.psword,"confirNew":option.psword}
@@ -90,10 +106,10 @@ def set_user():
 			error("Password Update Error %s %s" % (put_psw,put_psw.text))
 			sys.exit(1)
 	else:
-		logger.warn("Skip update password. It will use default password.")
-		skip("Skip update password. Use default password.")
-
-	return user,psword	
+		if psword == "admin":
+			logger.warn("Skip update password. It will use default password.")
+			skip("Skip update password. Use default password.")
+	return psword	
 
 
 def dashboard_import(user, psword):
@@ -117,9 +133,11 @@ def dashboard_import(user, psword):
 		else:
 			error("Dashboard Import Error %s %s"(response,response.text))
 			logger.error("Dashboard Import Error %s %s" % (response,response.text))
+			sys.exit(1)
 	elif check.status_code != 200 and check.status_code != 404:
 		error("Check error %s %s" % (check, check.text))
 		logger.error("%s %s" % (check, check.text))
+		sys.exit(1)
 
 def datasource_import(user, psword):
 	ds_get_url = 'http://' + user + ':' + psword + '@' + ip + ':3000/api/datasources/name/esgyn'
@@ -152,11 +170,20 @@ def run():
 	try:
 		set_logger(logger)
 		print("\33[32m[Log file location]: %s \33[0m" % log_file)
-		user, psword = set_user()
+		user, psword = load_user()
+		user = set_user(user, psword)
+		psword = set_psw(user, psword)
 		datasource_import(user, psword)
 		dashboard_import(user, psword)
+		if os.path.exists(TMP_USERINFO):
+			os.remove(TMP_USERINFO)
 	except IOError:
 		error("Unexpected error: Need sudo permission.")
+	except:
+		user_info = {"user":user, "psword":psword}
+		with open(TMP_USERINFO,"w") as userinfo:
+			json.dump(user_info, userinfo)
+		error("Please check the error according log file: %s" % log_file)
 
 if __name__ == "__main__":
 	run()
