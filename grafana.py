@@ -166,6 +166,27 @@ def datasource_import(user, psword):
 		logger.error("Check Error %s %s" % (check, check.text))
 		sys.exit(1)
 
+def start_db(user, psword):
+	log_output("Start Dashboard")
+	search_url = 'http://' + user + ':' + psword + '@' + ip + ':3000/api/search'
+	search = requests.get(search_url, headers=headers)
+	data = search.text.encode()
+	data = json.loads(data)
+	if len(data) > 1:
+		for d in data:
+			if d["uid"] == "vSTc90giz":
+				db_id = d["id"]
+				break
+	start_url = 'http://' + user + ':' + psword + '@' + ip + ':3000/api/user/stars/dashboard/' + str(db_id)
+	start = requests.post(start_url, headers=headers)
+	if start.status_code == 200:
+		logger.info("%s %s" % (start,start.text))
+		info("Dashboard started")
+	else:
+		logger.error("Dashboard Start Error %s %s" % (start,start.text))
+		error("Dashboard Start Error %s %s" % (start,start.text))
+
+
 def run():
 	try:
 		set_logger(logger)
@@ -175,6 +196,7 @@ def run():
 		psword = set_psw(user, psword)
 		datasource_import(user, psword)
 		dashboard_import(user, psword)
+		start_db(user, psword)
 		if os.path.exists(TMP_USERINFO):
 			os.remove(TMP_USERINFO)
 	except IOError:
