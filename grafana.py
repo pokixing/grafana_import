@@ -172,11 +172,10 @@ def start_db(user, psword):
 	search = requests.get(search_url, headers=headers)
 	data = search.text.encode()
 	data = json.loads(data)
-	if len(data) > 1:
-		for d in data:
-			if d["uid"] == "vSTc90giz":
-				db_id = d["id"]
-				break
+	for d in data:
+		if d["uid"] == "vSTc90giz":
+			db_id = d["id"]	
+			break
 	start_url = 'http://' + user + ':' + psword + '@' + ip + ':3000/api/user/stars/dashboard/' + str(db_id)
 	start = requests.post(start_url, headers=headers)
 	if start.status_code == 200:
