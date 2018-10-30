@@ -28,7 +28,7 @@ def get_options():
 	usage = "usage: %prog [options]"
 	parser = OptionParser(usage=usage)
 	parser.add_option("-u", "--username", dest="user", help="Set your grafana username.")
-	parser.add_option("-p", "--password", dest="psword", help="Set your grafana passwor")
+	parser.add_option("-p", "--password", dest="psword", help="Set your grafana password.")
 	options, args = parser.parse_args()
 	return options
 
@@ -60,9 +60,9 @@ def load_user():
 		userinfo = {"user":"admin", "psword":"admin"}
 	return userinfo["user"],userinfo["psword"]
 
-
+option = get_options()
 def set_user(user, psword):
-	option = get_options()
+	global option
 	log_output("Set Grafana Username")
 	if option.user:
 		user_url = 'http://' + user + ':' + psword +'@' + ip + ':3000/api/users'
@@ -89,7 +89,7 @@ def set_user(user, psword):
 
 
 def set_psw(user, psword):
-	option = get_options()
+	global option
 	log_output("Set Grafana Password")
 	if option.psword:
 		psw_url = 'http://' + user + ':' + psword + '@' + ip + ':3000/api/user/password'
@@ -200,7 +200,7 @@ def run():
 			os.remove(TMP_USERINFO)
 	except IOError:
 		error("Unexpected error: Need sudo permission.")
-	except:
+	except SystemExit:
 		user_info = {"user":user, "psword":psword}
 		with open(TMP_USERINFO,"w") as userinfo:
 			json.dump(user_info, userinfo)
