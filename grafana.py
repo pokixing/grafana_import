@@ -181,10 +181,13 @@ def start_db(user, psword):
 	if start.status_code == 200:
 		logger.info("%s %s" % (start,start.text))
 		info("Dashboard started")
+	elif start.status_code == 500:
+		logger.info("%s %s" % (start,start.text))
+		skip("This dashboard has been started.\nSkip this process.")
 	else:
 		logger.error("Dashboard Start Error %s %s" % (start,start.text))
 		error("Dashboard Start Error %s %s" % (start,start.text))
-
+		sys.exit(1)
 
 def run():
 	try:
@@ -198,6 +201,7 @@ def run():
 		start_db(user, psword)
 		if os.path.exists(TMP_USERINFO):
 			os.remove(TMP_USERINFO)
+		log_output("Import Complete")	
 	except IOError:
 		error("Unexpected error: Need sudo permission.")
 	except SystemExit:
