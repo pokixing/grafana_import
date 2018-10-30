@@ -6,25 +6,19 @@ import time
 import re
 import os
 
-COLLECTION_INTERVAL = 1800
 HDFS_DIR = '/user/trafodion'
 cmd = "hdfs dfs -du -h " + HDFS_DIR
 
 def main():
     try:
-        while True:
-            hdfs_used = 0
-            p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            stdout, stderr = p.communicate()
-            ts = int(time.time())
-            stdout = stdout.split("\n")
-            for i in stdout:
-                i = i.split(" ")
-                if i[0] != '':
-                    hdfs_used += int(i[0]) 
-            print("esgyn.data.size %d %s" % (ts, hdfs_used))
-            sys.stdout.flush()
-            time.sleep(COLLECTION_INTERVAL)
+		hdfs_used = 0
+        p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        ts = int(time.time())
+		for line in p.stdout.readlines():
+            line = line.split()
+            hdfs_used += eval(line[0]) 
+        print("esgyn.data.size %d %s" % (ts, hdfs_used))
+        sys.stdout.flush()
     
     except:
         print "Unexpected error:", sys.exc_info()[0]
