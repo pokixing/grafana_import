@@ -12,14 +12,14 @@ cmd = "hdfs dfs -du -h " + HDFS_DIR
 def main():
     try:
 		hdfs_used = 0
-        p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        ts = int(time.time())
+		p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+		ts = int(time.time())
 		for line in p.stdout.readlines():
-            line = line.split()
-            hdfs_used += eval(line[0]) 
-        print("esgyn.data.size %d %s" % (ts, hdfs_used))
-        sys.stdout.flush()
-    
+			line = line.split()
+			hdfs_used += eval(line[0])
+		print("esgyn.data.size %d %s" % (ts, hdfs_used))
+		sys.stdout.flush()
+
     except:
         print "Unexpected error:", sys.exc_info()[0]
 
