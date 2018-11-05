@@ -33,13 +33,13 @@ def main():
 			
 			stfs_usage,file_free = 0,0
 			file_sys = []
-			for sys in stfs:
-				stfs_usage += eval(sys[2])
-				if sys[1] in file_sys:
-					file_sys.append(sys[1])
-				elif sys[1] not in file_sys:
-					file_sys.append(sys[1])
-					file_free += eval(sys[3])
+			for i in stfs:
+				stfs_usage += eval(i[2])
+				if i[1] in file_sys:
+					file_sys.append(i[1])
+				elif i[1] not in file_sys:
+					file_sys.append(i[1])
+					file_free += eval(i[3])
 			
 			stfs_prect = (float(stfs_usage)/file_free) * 100
 			print("esgyn.stfs.prect %d %.5s" % (ts,stfs_prect))
