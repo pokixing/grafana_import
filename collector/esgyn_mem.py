@@ -12,7 +12,7 @@ cmd = "pstat"
 def main():
     try:
         while True:
-		    esgyn_memory, monitor_memory, tm_memory, mxosrvr_memory = 0, 0, 0, 0
+            esgyn_memory, monitor_memory, tm_memory, mxosrvr_memory = 0, 0, 0, 0
             p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             ts = int(time.time())
             for line in p.stdout.readlines():

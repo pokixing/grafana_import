@@ -9,7 +9,7 @@ import os
 cmd = 'edb_pdsh -a "lsof +L1 2>/dev/null | grep /SCR"'
 
 def main():
-	try:
+    try:
         STFS_status = None
         p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         ts = int(time.time())

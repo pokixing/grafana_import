@@ -19,9 +19,9 @@ def main():
         schema_usage = stdout.split()[index+2]
         print("esgyn.schema.size %d %s" % (ts, schema_usage))
         sys.stdout.flush()
-	
-     except:
-         print "Unexpected error:", sys.exc_info()[0]
+
+    except:
+        print "Unexpected error:", sys.exc_info()[0]
 
 if __name__ == "__main__":
     sys.stdin.close()

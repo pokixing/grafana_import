@@ -20,8 +20,8 @@ def main():
         print("esgyn.data.size %d %s" % (ts, hdfs_used))
         sys.stdout.flush()
 
-	except:
-	    print "Unexpected error:", sys.exc_info()[0]
+    except:
+        print "Unexpected error:", sys.exc_info()[0]
 
 if __name__ == "__main__":
     sys.stdin.close()

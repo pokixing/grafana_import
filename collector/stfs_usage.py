@@ -40,7 +40,7 @@ def main():
                 file_free += eval(i[3])
 			
         stfs_percent = (float(stfs_usage)/file_free) * 100
-        print("esgyn.stfs.percent %d %.5s" % (ts,stfs_prect))
+        print("esgyn.stfs.percent %d %.5s" % (ts,stfs_percent))
 
     except:
         print "Unexpected error:", sys.exc_info()[0]
