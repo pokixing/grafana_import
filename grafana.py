@@ -2,9 +2,7 @@
 import os
 import requests
 import json
-import re
 import logging
-import getpass
 import time
 import sys
 import socket
@@ -15,10 +13,7 @@ from optparse import OptionParser
 logger = logging.getLogger()
 TMP_USERINFO = "/tmp/grafana_userinfo"
 GRA_CONFILE = "/etc/grafana/grafana.ini"
-ip = socket.gethostbyname(socket.gethostname())
 log_file = '/var/log/grafana/Import_%s.log' % (time.strftime('%Y%m%d_%H%M%S'))
-headers={"Content-Type": 'application/json',
-         "Accept": 'application/json'}
 
 
 def set_logger(logger):
@@ -32,12 +27,15 @@ def set_logger(logger):
 def get_options():
     usage = "usage: %prog [options]"
     parser = OptionParser(usage=usage)
-    parser.add_option("-u", "--username", dest="user", help="Set your grafana username.")
-    parser.add_option("-p", "--password", dest="psword", help="Set your grafana password.")
-    parser.add_option("-s", "--sendemail", dest="sendemail", help="Set the mailbox to send the alarm.")
-    parser.add_option("-t", "--smtphost", dest="host", help="Enter the smtp server and port of your mailbox.")
-    parser.add_option("-a", "--smtppassword", dest="smtpps", help="Enter authorization code or password for the smtp service.")
-    parser.add_option("-r", "--receive", dest="receive", help="Set the mailbox to receive the alarm.")
+    parser.add_option("-p", "--password", dest="admin_psword",
+                      help="Modify the grafana administrator password.")
+    parser.add_option("-e", "--editor", dest="editor",
+                      help="Create a user with editing authority. You need to enter username, password and email address \
+                           (this mailbox will be used to receive alarm messages) in order and separated them by comma. \
+                      i.e. \"esgyn,password,esgyn@esgyn.cn\"")
+    parser.add_option("-s", "--smtp", dest="smtp",
+                      help="Set the mailbox to send the alarm message. You need to enter email address, smtp server \
+                      and password in order and separated them by comma. i.e. \"esgyn@qq.com,smtp.qq.com,password\"")
     options, args = parser.parse_args()
     return options
 
@@ -62,8 +60,10 @@ def info(msg):
     print('\33[33m***[INFO]: %s \33[0m' % msg)
 
 
-def error(msg):
+def error(msg, logout=True):
     print('\n\33[35m***[ERROR]: %s \33[0m' % msg)
+    if logout: logger.error(msg)
+    sys.exit(1)
 
 
 def load_user():
@@ -71,220 +71,197 @@ def load_user():
         with open(TMP_USERINFO, "r") as user_info:
             userinfo = json.load(user_info)
     else:
-        userinfo = {"user":"admin", "psword":"admin"}
-    return userinfo["user"],userinfo["psword"]
+        userinfo = {"user": "admin", "psword": "admin"}
+    return userinfo["user"], userinfo["psword"]
 
 
-option = get_options()
-def set_user(user, psword):
-    global option
-    log_output("Set Grafana Username")
-    if option.user:
-        user_url = 'http://' + user + ':' + psword +'@' + ip + ':3000/api/users'
-        get_user = requests.get(user_url, headers=headers)
-        data = get_user.text.encode()
-        data = json.loads(data.strip("[]"))
-        data["login"] = option.user
+class Grafana(object):
+    def __init__(self, admin_user, admin_psword):
+        self.admin_user = admin_user
+        self.admin_psword = admin_psword
+        self.ip = socket.gethostbyname(socket.gethostname())
+        self.url = 'http://%s:%s@%s' % (self.admin_user, self.admin_psword, self.ip)
+        self.headers = {"Content-Type": 'application/json',
+                        "Accept": 'application/json'}
+
+    def switch_request(self, mode, api, data=""):
+        url = self.url + api
         data = json.dumps(data)
-        #data = data.decode()
-        put_user = requests.put(user_url+'/1', data=data, headers=headers)
-        if put_user.status_code == 200:
-            logger.info("%s %s" % (put_user,put_user.text))
-            info("Username Updated!")
-            user = option.user
-        else:
-            logger.error("Username Updated Error %s %s" % (put_user,put_user.text))
-            error("Username Updated Error %s %s" % (put_user,put_user.text))
-            sys.exit(1)
-    else:		
-        if user == "admin":
-            logger.warn("Skip update username.It will use default username.")
-            skip("Skip update username.Use default username.")
-    return user
+        switcher = {
+            "get": requests.get(url, headers=self.headers),
+            "put": requests.put(url, data=data, headers=self.headers),
+            "post": requests.post(url, data=data, headers=self.headers),
+            "patch": requests.patch(url, data=data, headers=self.headers)
+        }
+        return switcher.get(mode, "Nothing")
 
-
-def set_psw(user, psword):
-    global option
-    log_output("Set Grafana Password")
-    if option.psword:
-        psw_url = 'http://' + user + ':' + psword + '@' + ip + ':3000/api/user/password'
-        psw = {"oldPassword":psword,"newPassword":option.psword,"confirNew":option.psword}
-        psw = json.dumps(psw)
-        #psw = psw.decode()
-        put_psw = requests.put(psw_url, data=psw, headers=headers)
+    def set_admin_psw(self, new_admin_psword):
+        log_output("Set Admin Password")
+        psw_api = ':3000/api/user/password'
+        data = {"oldPassword": self.admin_psword, "newPassword": new_admin_psword, "confirNew": new_admin_psword}
+        put_psw = self.switch_request("put", psw_api, data)
         if put_psw.status_code == 200:
-            logger.info("%s %s" % (put_psw,put_psw.text))
-            info("Password Updated!")
-            psword = option.psword
+            logger.info("Admin password Updated!  %s %s" % (put_psw, put_psw.text))
+            info("Admin password Updated!")
+            self.admin_psword = new_admin_psword
+            self.url = 'http://%s:%s@%s' % (self.admin_user, self.admin_psword, self.ip)
         else:
-            logger.error("Password Update Error %s %s" % (put_psw,put_psw.text))
-            error("Password Update Error %s %s" % (put_psw,put_psw.text))
-            sys.exit(1)
-    else:
-        if psword == "admin":
-            logger.warn("Skip update password. It will use default password.")
-            skip("Skip update password. Use default password.")
-    return psword	
+            error("Password Update Error %s %s" % (put_psw, put_psw.text))
 
+    def set_editor(self, editor, editor_psword, email):
+        log_output("Create Editor")
+        editor_api = ':3000/api/admin/users'
+        data = {"name": editor, "email": email, "login": editor, "password": editor_psword}
+        editor = self.switch_request("post", editor_api, data)
+        if editor.status_code == 200:
+            editor_id = json.loads(editor.text)["id"]
+            org_api = ':3000/api/org/users/' + str(editor_id)
+            data = {"role": "Editor"}
+            self.switch_request("patch", org_api, data)
+            logger.info("Editor created successfully!  %s %s" % (editor, editor.text))
+            info("Editor created successfully!")
+        elif editor.status_code == 500:
+            logger.info("This editor has been created.\nSkip create this editor.")
+            skip("This editor has been created.\nSkip create this editor.")
+        else:
+            error("Editor created Error %s %s" % (editor, editor.text))
 
-def notification_import(user, psword):
-    global option
-    log_output("Start importing alert notification...")
-    noti_url = 'http://' + user + ':' + psword + '@' + ip + ':3000/api/alert-notifications'
-    data = {"sendReminder": False, "type": "email", "name": "Esgyndb Notification", "isDefault": False, "settings": {"addresses": ""}}
-    data["settings"]["addresses"] = option.receive
-    data = json.dumps(data)
-    response = requests.post(noti_url, data=data, headers=headers)
-    if response.status_code == 200:
-        logger.info("Alert notification import successfully!")
-        info("Alert notification import successfully!")
-    elif response.status_code == 500:
-        logger.info("This notifiction has been existed.\nSkip import this notifiction.")       
-        skip("This notification has been existed.\nSkip import this notifiction.")
-    else:
-        error("Alert Notification Import Error %s %s" % (response,response.text))
-        logger.error("Alert Notification Import Error %s %s" % (response,response.text))
-        sys.exit(1)
-
-
-def dashboard_import(user, psword):
-    db_get_url = 'http://' + user + ':' + psword + '@' + ip + ':3000/api/dashboards/uid/esgyndb'
-    db_url = 'http://' + user + ':' + psword + '@' + ip + ':3000/api/dashboards/db'
-    log_output("Check Dashboard")
-    check = requests.get(db_get_url, headers=headers)
-    logger.info("%s %s" % (check, check.text))
-    if check.status_code == 200:
-        logger.info("This dashboard has been existed.\nSkip import this dashboard.")
-        skip("This dashboard has been existed.\nSkip import this dashboard.")
-    elif check.status_code == 404:
-        info("Dashbord dosen't exist.")
-        log_output("Start importing dashboard...")
-        data = open('esgyn_dashboard.json')
-        response = requests.post(db_url, data=data, headers=headers)
-        logger.info("%s %s" % (response,response.text))
+    def notification_import(self, receive_addr):
+        log_output("Start importing alert notification...")
+        noti_api = ':3000/api/alert-notifications'
+        data = {"sendReminder": False, "type": "email", "name": "Esgyndb Notification", "isDefault": False, "settings": {"addresses": ""}}
+        data["settings"]["addresses"] = receive_addr
+        response = self.switch_request("post", noti_api, data)
         if response.status_code == 200:
-            logger.info("Dashboard import successfully!")
-            info("Dashboard import successfully!")
+            logger.info("Alert notification import successfully!")
+            info("Alert notification import successfully!")
+        elif response.status_code == 500:
+            logger.info("This notifiction has been existed.\nSkip import this notifiction.")
+            skip("This notification has been existed.\nSkip import this notifiction.")
         else:
-            error("Dashboard Import Error %s %s" % (response,response.text))
-            logger.error("Dashboard Import Error %s %s" % (response,response.text))
-            sys.exit(1)
-    elif check.status_code != 200 and check.status_code != 404:
-        error("Check error %s %s" % (check, check.text))
-        logger.error("%s %s" % (check, check.text))
-        sys.exit(1)
+            error("Alert Notification Import Error %s %s" % (response, response.text))
 
+    def templet_import(self, mode, ds_name):  # import dashbord or datasource
+        title = ds_name + ' ' + mode
+        if mode == 'dashboard':
+            get_api = ':3000/api/dashboards/uid/esgyndb'
+            imp_url = self.url + ':3000/api/dashboards/db'
+        elif mode == 'datasource':
+            get_api = ':3000/api/datasources/name/%s' % ds_name.lower()
+            imp_url = self.url + ':3000/api/datasources'
+        log_output("Check %s" % title)
+        check = self.switch_request("get", get_api)
+        logger.info("%s %s" % (check, check.text))
+        if check.status_code == 200:
+            logger.info("This %s has been existed.\nSkip import this %s." % (title, title))
+            skip("This %s has been existed.\nSkip import this %s." % (title, title))
+        elif check.status_code == 404:
+            info("%s dosen't exist." % title)
+            log_output("Start importing %s..." % title)
+            data = open('%s_%s.json' % (ds_name.lower(), mode.lower()), 'rb')
+            response = requests.post(imp_url, data=data, headers=self.headers)
+            logger.info("%s %s" % (response, response.text))
+            if response.status_code == 200:
+                logger.info("%s import successfully!" % title)
+                info("%s import successfully!" % title)
+            else:
+                error("%s Import Error %s %s" % (mode, response, response.text))
+        elif check.status_code != 200 and check.status_code != 404:
+            error("Check error %s %s" % (check, check.text))
 
-def datasource_import(user, psword):
-    ds_get_url = 'http://' + user + ':' + psword + '@' + ip + ':3000/api/datasources/name/esgyn'
-    ds_url = 'http://' + user + ':' + psword + '@' + ip + ':3000/api/datasources'
-    log_output("Check Datasource")
-    check = requests.get(ds_get_url, headers=headers)
-    logger.info("%s %s" % (check, check.text))
-    if check.status_code == 200:
-        logger.info("This datasource has been existed.\nSkip import this datasource.")
-        skip("This datasource has been existed.\nSkip import this datasource.")
-    elif check.status_code == 404:
-        info("Datasource doesn't exist.")
-        log_output("Start importing datasource...")
-        data = open('esgyn_datasource.json')
-        response = requests.post(ds_url, data=data, headers=headers)
-        logger.info("%s %s" % (response,response.text))
-        if response.status_code == 200:
-            logger.info("Datasource import successfully!")
-            info("Datasource import successfully!")
+    def start_db(self):
+        log_output("Start Dashboard")
+        search_api = ':3000/api/search'
+        search = self.switch_request("get", search_api)
+        data = search.text.encode()
+        data = json.loads(data)
+        for d in data:
+            if d["uid"] == "esgyndb":
+                db_id = d["id"]
+                break
+        start_api = ':3000/api/user/stars/dashboard/' + str(db_id)
+        start = self.switch_request("post", start_api)
+        if start.status_code == 200:
+            logger.info("%s %s" % (start, start.text))
+            info("Dashboard started")
+        elif start.status_code == 500:
+            logger.info("%s %s" % (start, start.text))
+            skip("This dashboard has been started.\nSkip this process.")
         else:
-            error("Datasource Import Error!")
-            logger.error("Datasource Import Error %s %s" % (response,response.text))
-            sys.exit(1)	
-    elif check.status_code != 200 and check.status_code != 404:
-        error("Check Error %s %s" % (check, check.text))
-        logger.error("Check Error %s %s" % (check, check.text))
-        sys.exit(1)
+            error("Dashboard Start Error %s %s" % (start, start.text))
 
-
-def start_db(user, psword):
-    log_output("Start Dashboard")
-    search_url = 'http://' + user + ':' + psword + '@' + ip + ':3000/api/search'
-    search = requests.get(search_url, headers=headers)
-    data = search.text.encode()
-    data = json.loads(data)
-    for d in data:
-        if d["uid"] == "esgyndb":
-            db_id = d["id"]	
-            break
-    start_url = 'http://' + user + ':' + psword + '@' + ip + ':3000/api/user/stars/dashboard/' + str(db_id)
-    start = requests.post(start_url, headers=headers)
-    if start.status_code == 200:
-        logger.info("%s %s" % (start,start.text))
-        info("Dashboard started")
-    elif start.status_code == 500:
-        logger.info("%s %s" % (start,start.text))
-        skip("This dashboard has been started.\nSkip this process.")
-    else:
-        logger.error("Dashboard Start Error %s %s" % (start,start.text))
-        error("Dashboard Start Error %s %s" % (start,start.text))
-        sys.exit(1)
-
-def set_smtp():
-    global option
-    data = """enabled=true                                                                                                                                              
+    def set_smtp(self, sendmail, smtp_host, smtp_psword):
+        data = """enabled=true                                                                                                                                              
 host=%s
 user=%s
 password=%s
 from_address=%s
 from_name = Grafana
-""" % (option.host, option.sendemail, option.smtpps, option.sendemail)
-    log_output("Set grafana.ini")
-    if os.path.exists(GRA_CONFILE): 
-        confile = open(GRA_CONFILE).readlines()
-        lines = []
-        config = ConfigParser.ConfigParser()
-        config.read(GRA_CONFILE)
-        item = config.items('smtp')
-        for i in range(len(confile)):
-            lines.append(confile[i])
-            if "[smtp]" in confile[i]:
-                linenum = i
-        if item != []:
-            logger.info("Skip set grafana.ini. It has been changed.")
-            skip("Skip set grafana.ini. It has been changed.")
-        elif item == []:
-            lines.insert(linenum+1, data)
-            s = ''.join(lines)
-            with open(GRA_CONFILE, 'w') as confile:
-                confile.write(s)
-            p = subprocess.Popen("sudo service grafana-server restart", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            info("Set Grafana.ini Complete")
-    else:
-        logger.error("%s doesn't exist" %GRA_CONFILE)                                               
-        error("%s doesn't exist" %GRA_CONFILE )
-        sys.exit(1)
+""" % (smtp_host, sendmail, smtp_psword, sendmail)
+        log_output("Set grafana.ini")
+        if os.path.exists(GRA_CONFILE):
+            confile = open(GRA_CONFILE).readlines()
+            lines = []
+            config = ConfigParser.ConfigParser()
+            config.read(GRA_CONFILE)
+            item = config.items('smtp')
+            for i in range(len(confile)):
+                lines.append(confile[i])
+                if "[smtp]" in confile[i]:
+                    linenum = i
+            if item:
+                logger.info("Skip set grafana.ini. It has been changed.")
+                skip("Skip set grafana.ini. It has been changed.")
+            elif not item:
+                lines.insert(linenum+1, data)
+                s = ''.join(lines)
+                with open(GRA_CONFILE, 'w') as confile:
+                    confile.write(s)
+                p = subprocess.Popen("sudo service grafana-server restart", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                info("Set Grafana.ini Complete")
+        else:
+            error("%s doesn't exist" % GRA_CONFILE)
 
 
 def run():
     try:
         set_logger(logger)
+        option = get_options()
         print("\33[32m[Log file location]: %s \33[0m" % log_file)
-        user, psword = load_user()
-        user = set_user(user, psword)
-        psword = set_psw(user, psword)
-        datasource_import(user, psword)
-        notification_import(user, psword) 
-        dashboard_import(user, psword)
-        start_db(user, psword)
-        set_smtp()
+        admin_user, admin_psword = load_user()
+        grafana = Grafana(admin_user, admin_psword)
+        if option.admin_psword:
+            grafana.set_admin_psw(option.admin_psword)
+            admin_psword = option.admin_psword
+        if option.editor:
+            option.editor = option.editor.split(',')
+            if len(option.editor) == 3:
+                editor, editor_psword, editor_email = option.editor
+                grafana.set_editor(editor.strip(), editor_psword.strip(), editor_email.strip())
+            else:
+                error("You need input email;host;psword(eg)")
+        grafana.templet_import('datasource', 'Esgyn')
+        grafana.templet_import('datasource', 'Loki')
+        grafana.templet_import('dashboard', 'Esgyn')
+        if option.smtp:
+            if editor_email: grafana.notification_import(editor_email.strip())
+            option.smtp = option.smtp.split(',')
+            if len(option.smtp) == 3:
+                sendmail, smtp_host, smtp_psword = option.smtp
+                grafana.set_smtp(sendmail.strip(), smtp_host.strip(), smtp_psword.strip())
+            else:
+                error("You need input email;host;psword(eg)")
+        grafana.start_db()
         if os.path.exists(TMP_USERINFO):
             os.remove(TMP_USERINFO)
-        log_output("Import Complete")	
-    #except IOError:
-        #error("Unexpected error: Need sudo permission.")
+        log_output("Import Complete")
     except SystemExit:
-        user_info = {"user":user, "psword":psword}
-        with open(TMP_USERINFO,"w") as userinfo:
+        user_info = {"user": admin_user, "psword": admin_psword}
+        with open(TMP_USERINFO, "w") as userinfo:
             json.dump(user_info, userinfo)
-        error("Please check the error according log file: %s" % log_file)
+        error("Please check the error according log file: %s" % log_file, logout=False)
 
 
 if __name__ == "__main__":
     run()
+
