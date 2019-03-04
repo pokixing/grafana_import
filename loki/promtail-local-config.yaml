@@ -1,0 +1,61 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+client:
+  url: http://172.16.10.114:3100/api/prom/push
+  external_labels: 
+    hostname: xzy.novalocal
+scrape_configs:
+- job_name: Esgyn
+  entry_parser: raw
+  static_configs:
+  - targets:
+      - localhost
+    labels:
+      __path__: /opt/trafodion/esgyndb/logs/*
+- job_name: Dcs 
+  entry_parser: raw
+  static_configs:
+  - targets:
+      - localhost
+    labels:
+      __path__: /opt/trafodion/esgyndb/logs/dcs/*
+- job_name: Rest
+  entry_parser: raw
+  static_configs:
+  - targets:
+      - localhost
+    labels:
+      __path__: /opt/trafodion/esgyndb/logs/rest/*
+- job_name: Bosun
+  entry_parser: raw
+  static_configs:
+  - targets:
+      - localhost
+    labels:
+      __path__: /opt/trafodion/esgyndb/logs/mgblty/bosun/*
+- job_name: Dbmgr
+  entry_parser: raw
+  static_configs:
+  - targets:
+      - localhost
+    labels:
+      __path__: /opt/trafodion/esgyndb/logs/mgblty/dbmgr/*
+- job_name: Opentsdb
+  entry_parser: raw
+  static_configs:
+  - targets:
+      - localhost
+    labels:
+      __path__: /opt/trafodion/esgyndb/logs/mgblty/opentsdb/*
+- job_name: Tcollector
+  entry_parser: raw
+  static_configs:
+  - targets:
+      - localhost
+    labels:
+      __path__: /opt/trafodion/esgyndb/logs/mgblty/tcollector/*
